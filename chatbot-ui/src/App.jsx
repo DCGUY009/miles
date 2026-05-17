@@ -9,7 +9,7 @@ function App() {
   return (
     <Router>
       <div className="sidebar">
-        <h2>Antigravity MCP</h2>
+        <h2>System Helper</h2>
         <div className="nav-links">
           <NavLink to="/chat" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
             <MessageSquare size={20} />

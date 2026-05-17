@@ -41,6 +41,20 @@ export default function Settings() {
       <h1 className="page-title">MCP Servers</h1>
       <p className="page-subtitle">Manage Model Context Protocol servers connected to your assistant.</p>
 
+      <div className="card" style={{ marginBottom: '20px', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderColor: 'rgba(59, 130, 246, 0.3)' }}>
+        <h3 style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-color)' }}>
+          <Server size={20} /> Available MCP Server Tools
+        </h3>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginBottom: '12px', lineHeight: '1.5' }}>
+          The currently connected MCP server provides the AI agent with the following powerful system tools:
+        </p>
+        <ul style={{ color: 'var(--text-primary)', fontSize: '0.9rem', paddingLeft: '20px', lineHeight: '1.6' }}>
+          <li><strong>check_security_status</strong>: Checks FileVault, Firewall, and SIP status on macOS.</li>
+          <li><strong>get_system_stats</strong>: Retrieves real-time CPU, RAM, and Disk usage metrics.</li>
+          <li><strong>check_system_updates</strong>: Checks for pending macOS software updates.</li>
+        </ul>
+      </div>
+
       <div className="card">
         <h3 style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Server size={20} /> Add New Server

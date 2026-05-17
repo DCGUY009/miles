@@ -62,7 +62,12 @@ export default function Chat() {
 
       while (true) {
         const { value, done } = await reader.read();
-        if (done) break;
+        if (done) {
+          setMessages(prev => prev.map(msg => 
+            msg.id === aiMessageId ? { ...msg, traces: [] } : msg
+          ));
+          break;
+        }
 
         buffer += decoder.decode(value, { stream: true });
         
@@ -81,7 +86,11 @@ export default function Chat() {
               setMessages(prev => prev.map(msg => {
                 if (msg.id === aiMessageId) {
                   if (data.type === 'trace') {
-                    return { ...msg, traces: [...(msg.traces || []), data.content] };
+                    // Ignore tool results from traces and only keep the latest trace
+                    if (data.content.toLowerCase().includes('tool result') || data.content.toLowerCase().includes('tool output') || data.content.includes('result') || data.content.includes('Finished tool')) {
+                      return msg;
+                    }
+                    return { ...msg, traces: [data.content] };
                   } else if (data.type === 'token') {
                     return { ...msg, content: msg.content + data.content };
                   } else if (data.type === 'error') {
