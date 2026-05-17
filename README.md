@@ -66,4 +66,4 @@ Miles is a friendly, approachable, and powerful System Operations and Security A
 
 1. Open the local address provided by Vite (e.g., `http://localhost:5173`) in your browser.
 2. Head to the **MCP Servers** page to ensure the local FastApiMCP server is enabled and its tools are successfully fetched.
-3. Switch to the **Chatbot** page to start a conversation with OmniSys Assistant!
+3. Switch to the **Chatbot** page to start a conversation with Miles Assistant!
