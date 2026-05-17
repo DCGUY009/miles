@@ -24,11 +24,11 @@ Miles is a friendly, approachable, and powerful System Operations and Security A
 
 ### 1. Backend Setup
 
-1. Create a `.env` file in the root directory based on `.example.env`:
+1. Rename the provided `.env.example` file to `.env` in the root directory:
    ```bash
-   cp .example.env .env
+   mv .env.example .env
    ```
-2. Add your OpenAI API Key to the `.env` file:
+2. **IMPORTANT**: Open the new `.env` file and add your OpenAI API Key for the app to work:
    ```env
    OPENAI_API_KEY="your-api-key-here"
    ```
