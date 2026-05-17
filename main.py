@@ -14,6 +14,7 @@ from langgraph.prebuilt import create_react_agent
 from mcp.client.streamable_http import streamable_http_client
 from mcp.client.session import ClientSession
 from langchain_mcp_adapters.tools import load_mcp_tools
+from contextlib import AsyncExitStack
 
 import os
 from dotenv import load_dotenv
@@ -93,6 +94,22 @@ mcp.mount_http()
 # 4. Agent Endpoint
 class ChatRequest(BaseModel):
     message: str
+    enabled_servers: list[str] = []
+
+class ServerToolsRequest(BaseModel):
+    url: str
+
+@app.post("/api/server-tools")
+async def get_server_tools(req: ServerToolsRequest):
+    """Fetches tools from a specific MCP server for the UI."""
+    try:
+        async with streamable_http_client(req.url) as (read_stream, write_stream, _):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+                result = await session.list_tools()
+                return {"tools": [{"name": t.name, "description": t.description} for t in result.tools]}
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.post("/api/chat")
 async def chat_endpoint(req: ChatRequest):
@@ -102,55 +119,72 @@ async def chat_endpoint(req: ChatRequest):
         
     async def event_generator():
         try:
-            # We act as an MCP Client connecting to our own server to fetch its tools
-            async with streamable_http_client("http://localhost:8000/mcp") as (read_stream, write_stream, _):
-                async with ClientSession(read_stream, write_stream) as session:
-                    # Initialize the session
-                    await session.initialize()
+            mcp_tools = []
+            
+            # Use AsyncExitStack to handle dynamic number of server connections
+            async with AsyncExitStack() as stack:
+                if req.enabled_servers:
+                    yield f"data: {json.dumps({'type': 'trace', 'content': f'🚀 Connecting to {len(req.enabled_servers)} active MCP server(s)...'})}\n\n"
                     
-                    yield f"data: {json.dumps({'type': 'trace', 'content': '🚀 Initialized connection to MCP server.'})}\n\n"
+                    for server_url in req.enabled_servers:
+                        try:
+                            # Enter context managers dynamically
+                            (read_stream, write_stream, _) = await stack.enter_async_context(
+                                streamable_http_client(server_url)
+                            )
+                            session = await stack.enter_async_context(
+                                ClientSession(read_stream, write_stream)
+                            )
+                            await session.initialize()
+                            
+                            # Retrieve the tools exposed by this MCP server
+                            tools = await load_mcp_tools(session)
+                            mcp_tools.extend(tools)
+                            
+                        except Exception as e:
+                            yield f"data: {json.dumps({'type': 'trace', 'content': f'⚠️ Failed to connect to {server_url}: {str(e)}'})}\n\n"
+                            
+                    yield f"data: {json.dumps({'type': 'trace', 'content': f'📦 Loaded a total of {len(mcp_tools)} tools.'})}\n\n"
+                else:
+                    yield f"data: {json.dumps({'type': 'trace', 'content': '⚠️ No MCP servers enabled. Agent will act as a standard LLM.'})}\n\n"
+
+                # Initialize the LLM
+                llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+                
+                # Create the ReAct agent with the MCP tools (or just standard agent if empty)
+                agent = create_react_agent(llm, tools=mcp_tools) if mcp_tools else create_react_agent(llm, tools=[])
+                
+                # Stream events from LangGraph
+                async for event in agent.astream_events({"messages": [("user", req.message)]}, version="v2"):
+                    kind = event["event"]
                     
-                    # Retrieve the tools exposed by the MCP server
-                    mcp_tools = await load_mcp_tools(session)
-                    yield f"data: {json.dumps({'type': 'trace', 'content': f'📦 Loaded {len(mcp_tools)} tools from MCP server.'})}\n\n"
-                    
-                    # Initialize the LLM
-                    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-                    
-                    # Create the ReAct agent with the MCP tools
-                    agent = create_react_agent(llm, tools=mcp_tools)
-                    
-                    # Stream events from LangGraph
-                    async for event in agent.astream_events({"messages": [("user", req.message)]}, version="v2"):
-                        kind = event["event"]
+                    if kind == "on_chat_model_stream":
+                        # Stream final answer tokens
+                        content = event["data"]["chunk"].content
+                        if isinstance(content, str) and content:
+                            yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
+                            
+                    elif kind == "on_tool_start":
+                        tool_name = event["name"]
+                        inputs = event["data"].get("input", {})
+                        msg = f"🔨 Running Tool: {tool_name}\nInputs: {json.dumps(inputs)}"
+                        yield f"data: {json.dumps({'type': 'trace', 'content': msg})}\n\n"
                         
-                        if kind == "on_chat_model_stream":
-                            # Stream final answer tokens
-                            content = event["data"]["chunk"].content
-                            if isinstance(content, str) and content:
-                                yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
-                                
-                        elif kind == "on_tool_start":
-                            tool_name = event["name"]
-                            inputs = event["data"].get("input", {})
-                            msg = f"🔨 Running Tool: {tool_name}\nInputs: {json.dumps(inputs)}"
-                            yield f"data: {json.dumps({'type': 'trace', 'content': msg})}\n\n"
-                            
-                        elif kind == "on_tool_end":
-                            tool_name = event["name"]
-                            output = event["data"].get("output", "")
-                            
-                            # Parse output. Output might be an object, str, or ToolMessage
-                            try:
-                                if hasattr(output, 'content'):
-                                    out_str = str(output.content)
-                                else:
-                                    out_str = str(output)
-                            except Exception:
+                    elif kind == "on_tool_end":
+                        tool_name = event["name"]
+                        output = event["data"].get("output", "")
+                        
+                        # Parse output. Output might be an object, str, or ToolMessage
+                        try:
+                            if hasattr(output, 'content'):
+                                out_str = str(output.content)
+                            else:
                                 out_str = str(output)
-                                
-                            msg = f"✅ Tool Result ({tool_name}):\n{out_str}"
-                            yield f"data: {json.dumps({'type': 'trace', 'content': msg})}\n\n"
+                        except Exception:
+                            out_str = str(output)
+                            
+                        msg = f"✅ Tool Result ({tool_name}):\n{out_str}"
+                        yield f"data: {json.dumps({'type': 'trace', 'content': msg})}\n\n"
                             
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
             

@@ -45,10 +45,17 @@ export default function Chat() {
     setIsLoading(true);
 
     try {
+      const saved = localStorage.getItem('mcp_servers');
+      let enabledServers = ['http://localhost:8000/mcp'];
+      if (saved) {
+        const serversList = JSON.parse(saved);
+        enabledServers = serversList.filter(s => s.enabled).map(s => s.url);
+      }
+
       const res = await fetch('http://localhost:8000/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage })
+        body: JSON.stringify({ message: userMessage, enabled_servers: enabledServers })
       });
 
       if (!res.ok) {
@@ -138,7 +145,8 @@ export default function Chat() {
                       color: 'var(--text-secondary)',
                       fontFamily: 'monospace',
                       marginBottom: '8px',
-                      borderLeft: '2px solid var(--accent-color)'
+                      borderLeft: '2px solid var(--accent-color)',
+                      animation: 'fadeIn 0.3s ease-in-out'
                     }}>
                       {trace}
                     </div>
@@ -147,23 +155,22 @@ export default function Chat() {
               )}
               
               {/* Actual Message Content */}
-              <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
-                {msg.content}
-              </div>
+              {msg.content && (
+                <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
+                  {msg.content}
+                </div>
+              )}
+              
+              {/* Agent Thinking Indicator */}
+              {isLoading && msg.role === 'assistant' && msg.id === messages[messages.length - 1].id && !msg.content && msg.traces.length === 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', fontStyle: 'italic', padding: '8px 0' }}>
+                  <Activity size={16} className="animate-pulse" />
+                  <span>Agent is thinking...</span>
+                </div>
+              )}
             </div>
           </div>
         ))}
-        {isLoading && (
-          <div className="message assistant">
-            <div className="message-avatar">
-              <Bot size={20} />
-            </div>
-            <div className="message-content" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
-              <Activity size={16} className="animate-pulse" />
-              <span>Agent is working...</span>
-            </div>
-          </div>
-        )}
         <div ref={messagesEndRef} />
       </div>
       
