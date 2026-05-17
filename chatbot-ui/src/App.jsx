@@ -29,7 +29,7 @@ function AppContent() {
   return (
     <>
       <div className="sidebar">
-        <h2>System Helper</h2>
+        <h2>Miles</h2>
         <div className="nav-links">
           <NavLink to="/chat" end className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
             <MessageSquare size={20} />

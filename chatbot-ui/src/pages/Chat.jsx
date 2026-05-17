@@ -7,7 +7,7 @@ const INITIAL_MESSAGES = [
   { 
     id: 1, 
     role: 'assistant', 
-    content: 'Hello! I am your Security & Diagnostics AI assistant powered by LangGraph. I can check your Mac\'s FileVault, Firewall, SIP status, pending OS updates, and realtime CPU/RAM usage! What would you like me to check?',
+    content: 'Hello! I am Miles, your friendly and approachable System Operations and Security AI assistant. I am here to go the extra mile to diagnose your system, monitor realtime metrics, check for updates, and review security settings. What would you like to check today?',
     traces: []
   }
 ];

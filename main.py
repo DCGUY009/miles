@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 1. Create your standard FastAPI App
-app = FastAPI(title="My APIs and MCP Server")
+app = FastAPI(title="Miles")
 
 # Add CORS middleware to allow the Vite frontend to connect
 app.add_middleware(
