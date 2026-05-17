@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, Activity } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Send, Bot, User, Activity } from 'lucide-react';
 
 const INITIAL_MESSAGES = [
   { 
@@ -11,10 +12,60 @@ const INITIAL_MESSAGES = [
 ];
 
 export default function Chat() {
+  const { id } = useParams();
+  const navigate = useNavigate();
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
+
+  // Load chat on mount or when id changes
+  useEffect(() => {
+    if (id) {
+      const saved = localStorage.getItem('chat_sessions');
+      if (saved) {
+        const sessions = JSON.parse(saved);
+        const session = sessions.find(s => s.id === id);
+        if (session) {
+          setMessages(session.messages);
+        } else {
+          // invalid id, reset
+          navigate('/chat', { replace: true });
+        }
+      }
+    } else {
+      setMessages(INITIAL_MESSAGES);
+    }
+  }, [id, navigate]);
+
+  // Save chat on messages update
+  useEffect(() => {
+    if (messages === INITIAL_MESSAGES) return;
+    
+    // We only save if there's actually a user message
+    if (messages.length <= 1) return;
+
+    let currentId = id;
+    const saved = localStorage.getItem('chat_sessions');
+    let sessions = saved ? JSON.parse(saved) : [];
+
+    if (!currentId) {
+      currentId = Date.now().toString();
+      const title = messages[1]?.content?.slice(0, 30) + '...' || 'New Chat';
+      const newSession = { id: currentId, title, messages, updatedAt: Date.now() };
+      sessions.push(newSession);
+      localStorage.setItem('chat_sessions', JSON.stringify(sessions));
+      window.dispatchEvent(new Event('chatsUpdated'));
+      // Silently update URL without unmounting
+      navigate(`/chat/${currentId}`, { replace: true });
+    } else {
+      sessions = sessions.map(s => 
+        s.id === currentId ? { ...s, messages, updatedAt: Date.now() } : s
+      );
+      localStorage.setItem('chat_sessions', JSON.stringify(sessions));
+      window.dispatchEvent(new Event('chatsUpdated'));
+    }
+  }, [messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -40,7 +91,8 @@ export default function Chat() {
       traces: [] 
     };
 
-    setMessages(prev => [...prev, userMsgObj, initialAiMsgObj]);
+    const updatedMessages = [...messages, userMsgObj, initialAiMsgObj];
+    setMessages(updatedMessages);
     setInput('');
     setIsLoading(true);
 
@@ -52,10 +104,16 @@ export default function Chat() {
         enabledServers = serversList.filter(s => s.enabled).map(s => s.url);
       }
 
+      // We send the history EXCLUDING the empty placeholder AI message
+      const historyToSend = updatedMessages.slice(0, -1).map(m => ({
+        role: m.role,
+        content: m.content
+      }));
+
       const res = await fetch('http://localhost:8000/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage, enabled_servers: enabledServers })
+        body: JSON.stringify({ messages: historyToSend, enabled_servers: enabledServers })
       });
 
       if (!res.ok) {

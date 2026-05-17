@@ -93,7 +93,7 @@ mcp.mount_http()
 
 # 4. Agent Endpoint
 class ChatRequest(BaseModel):
-    message: str
+    messages: list[dict]
     enabled_servers: list[str] = []
 
 class ServerToolsRequest(BaseModel):
@@ -155,7 +155,12 @@ async def chat_endpoint(req: ChatRequest):
                 agent = create_react_agent(llm, tools=mcp_tools) if mcp_tools else create_react_agent(llm, tools=[])
                 
                 # Stream events from LangGraph
-                async for event in agent.astream_events({"messages": [("user", req.message)]}, version="v2"):
+                formatted_messages = [
+                    ("user", m["content"]) if m["role"] == "user" else ("assistant", m["content"]) 
+                    for m in req.messages
+                ]
+                
+                async for event in agent.astream_events({"messages": formatted_messages}, version="v2"):
                     kind = event["event"]
                     
                     if kind == "on_chat_model_stream":
@@ -166,8 +171,8 @@ async def chat_endpoint(req: ChatRequest):
                             
                     elif kind == "on_tool_start":
                         tool_name = event["name"]
-                        inputs = event["data"].get("input", {})
-                        msg = f"🔨 Running Tool: {tool_name}\nInputs: {json.dumps(inputs)}"
+                        clean_name = tool_name.replace("_", " ").title()
+                        msg = f"🔨 Calling tool: {clean_name}..."
                         yield f"data: {json.dumps({'type': 'trace', 'content': msg})}\n\n"
                         
                     elif kind == "on_tool_end":
