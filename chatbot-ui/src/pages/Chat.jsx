@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Send, Bot, User, Activity } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 const INITIAL_MESSAGES = [
   { 
@@ -214,8 +215,8 @@ export default function Chat() {
               
               {/* Actual Message Content */}
               {msg.content && (
-                <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
-                  {msg.content}
+                <div className="markdown-content" style={{ lineHeight: '1.5' }}>
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
                 </div>
               )}
               
